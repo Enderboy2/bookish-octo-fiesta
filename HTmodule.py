@@ -7,9 +7,9 @@ class hand_tracker:
         self.max_hands = maxHands
         self.detection_con = detectionCon
         self.model_complex = modelComplexity
-        self.track_Con = trackCon
+        self.track_con = trackCon
         self.mp_hands = mp.solutions.hands
-        self.hands = self.mpHands.Hands(self.mode, self.maxHands,self.modelComplex,self.detectionCon, self.trackCon)
+        self.hands = self.mp_hands.Hands(self.mode, self.max_hands,self.model_complex,self.detection_con, self.track_con)
         self.mp_draw = mp.solutions.drawing_utils
     def hands_finder(self,image,draw=True):
         image_RGB = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
@@ -29,17 +29,15 @@ class hand_tracker:
                 lmlist.append([id,cx,cy])
             if draw:
                 cv2.circle(image,(cx,cy), 15 , (255,0,255), cv2.FILLED)
-
         return lmlist
 def main():
     cap = cv2.VideoCapture(0)
-    tracker = hand_tracker
+    tracker = hand_tracker()
     while True:
         success, image = cap.read()
-        image = tracker.hands_finder(image)
-        lmList = tracker.position_finder(image)
+        image = tracker.hands_finder(image,True)
+        lmList = tracker.position_finder(image,0,True)
         if len(lmList) != 0:
             print(lmList[4])
-
         cv2.imshow("Video",image)
         cv2.waitKey(1)
