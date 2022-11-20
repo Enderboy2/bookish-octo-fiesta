@@ -1,5 +1,10 @@
 import mediapipe as mp
 import cv2
+import math
+import numpy as np
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
 class hand_tracker:
     def __init__(self, mode=False, maxHands=2, detectionCon=0.5,modelComplexity=1,trackCon=0.5):
@@ -32,12 +37,17 @@ class hand_tracker:
 
         return lmlist
     def distance_calculate(self, p1, p2):
-        """p1 and p2 in format (x1,y1) and (x2,y2) tuples"""
+        """p1 and p2 in format (thumb_x,thumb_y) and (index_x,index_y) tuples"""
         self.dis = ((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2) ** 0.5
         return self.dis
 def main():
     cap = cv2.VideoCapture(0)
     tracker = hand_tracker()
+    devices = AudioUtilities.GetSpeakers()
+    interface = devices.Activate(
+    IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+    volume = cast(interface, POINTER(IAudioEndpointVolume))
+    print(volume.GetVolumeRange()) 
     while True:
         success, image = cap.read()
         image = cv2.flip(image,1)
@@ -45,17 +55,21 @@ def main():
         lmList = tracker.position_finder(image)
 
         if len(lmList) != 0:
-            index_lm = lmList[8]
-            thumb_lm = lmList[4]
-            index_x = index_lm[1]
-            thumb_x = thumb_lm[1]
-            index_y = index_lm[2]
-            thumb_y = thumb_lm[2]
-            index = (index_x, index_y)
-            thumb = (thumb_x, thumb_y)
-            dis = tracker.distance_calculate(index,thumb)
-            print(dis)
+            thumb_x, thumb_y = lmList[4][1], lmList[4][2]
+            index_x, index_y = lmList[8][1], lmList[8][2]
+            length = math.hypot(index_x-thumb_x, index_y-thumb_y)
+            print(length)
+            volumeValue = np.interp(length, [20, 250], [-65.25, 0.0])
+            volume.SetMasterVolumeLevel(volumeValue, None)
+            
+            cv2.circle(image, (thumb_x, thumb_y), 15, (255, 0, 255), cv2.FILLED)
+            cv2.circle(image, (index_x, index_y), 15, (255, 0, 255), cv2.FILLED)
+            cv2.line(image, (thumb_x, thumb_y), (index_x, index_y), (255, 0, 255), 3)
+        else:
+            print("No hands Detected")
+
+        cv2.imshow('Hand-Tracker volume control',image)
         key = cv2.waitKey(1)
         if key == 27:
             break
-        #cv2.imshow('Hand-Tracker',image)
+        
