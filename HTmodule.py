@@ -31,10 +31,10 @@ class hand_tracker:
                 cv2.circle(image,(cx,cy), 15 , (255,0,255), cv2.FILLED)
 
         return lmlist
-    def distance_calculate(p1, p2):
+    def distance_calculate(self, p1, p2):
         """p1 and p2 in format (x1,y1) and (x2,y2) tuples"""
-        dis = ((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2) ** 0.5
-        return dis
+        self.dis = ((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2) ** 0.5
+        return self.dis
 def main():
     cap = cv2.VideoCapture(0)
     tracker = hand_tracker()
