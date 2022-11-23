@@ -173,7 +173,4 @@ def main():
         else:
             print("No hands Detected")
         debug_image = tracker.draw_info(debug_image, int(fps))
-        cv2.imshow('Hand-Tracker volume control',debug_image)
-        key = cv2.waitKey(1)
-        if key == 27:
-            break
+        cv2.imshow('Hand-Tracker volume control',debug_image) 
