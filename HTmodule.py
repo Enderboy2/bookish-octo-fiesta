@@ -13,14 +13,23 @@ class hand_tracker:
     def __init__(self, mode=False, maxHands=1, detectionCon=0.5,modelComplexity=1,trackCon=0.5):
         self.mode = mode
         self.max_hands = maxHands
-        self.detection_con = detectionCon
-        self.model_complex = modelComplexity
-        self.track_con = trackCon
+        self.min_detection_confidence = detectionCon
+        self.min_tracking_confidence = trackCon
         self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(self.mode, self.max_hands,self.model_complex,self.detection_con, self.track_con)
+        self.model_complex = modelComplexity
+        self.hands = self.mp_hands.Hands(self.mode, self.max_hands,self.model_complex,self.min_detection_confidence, self.min_tracking_confidence)
         self.mp_draw = mp.solutions.drawing_utils
 
     def hands_finder(self,image,draw=True):
+
+        """Draw the joints(landmarks) and their connection in the hand
+
+        :param: image - img
+        :param: draw - bool - wheter to draw or not
+        :return: image - img - image with drawn hands
+
+        """
+
         image_RGB = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
         self.results = self.hands.process(image_RGB)
         if self.results.multi_hand_landmarks:
@@ -30,6 +39,16 @@ class hand_tracker:
         return image
 
     def position_finder(self,image, handNo=0, draw=True):
+
+        """Find the landmarks on the image
+
+        :param: image
+        :param: handNo - int - number of hands
+        :param: draw - bool - wheter to draw or not
+        :return: lmlist - array - list of positions of the landmarks
+
+        """
+
         lmlist = []
         if self.results.multi_hand_landmarks:
             Hand = self.results.multi_hand_landmarks[handNo]
@@ -41,8 +60,15 @@ class hand_tracker:
                 cv2.circle(image,(cx,cy), 15 , (255,0,255), cv2.FILLED)
         return lmlist
 
-    def calc_bounding_rect(self,image, landmarks):
-        image_width, image_height = image.shape[1], image.shape[0]
+    def calc_bounding_rect(self,landmarks):
+
+        """Calculate the coordinates of the outer rectangle
+
+        :params: landmarks - array - landmarks list
+        :return: [x, y, w, h]  - array - x, y, width and height of the rectangle
+
+        """
+
         landmark_array = np.empty((0, 2), int)
         for _, landmark in enumerate(landmarks):
             landmark_x = int(landmark[1])
@@ -53,73 +79,40 @@ class hand_tracker:
         return [x, y, w, h]
 
     def draw_bounding_rect(self,use_brect, image, brect):
+
+        """Draw the bounding rect
+
+        :param: use_brect - bool - whether to draw or not
+        :param: image - img - image to be drawn on
+        :param: brect - array - x, y, width and height of the rectangle
+        :return: image - img - image with drawn bounding rectangle
+
+        """
+
         if use_brect:
-            # Outer rectangle
             cv2.rectangle(image, (brect[0], brect[1]), (brect[2] + brect[0], brect[3]+ brect[1]),
                         (199, 12, 34), 1)
-
         return image
 
-    def draw_info(self,image, fps):
+    def draw_info(self,image, fps, perc):
+
+        """Draw the info on the image
+        
+        :param: image - img - image to be drawn on
+        :param: fps - int
+        :param: perc - int
+        :return: image - img - image with drawn info
+
+        """
+
         cv2.putText(image, "FPS:" + str(fps), (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
                 1.0, (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(image, "FPS:" + str(fps), (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
+        cv2.putText(image, "%" + str(perc), (0,185), cv2.FONT_HERSHEY_SIMPLEX,
                 1.0, (255, 255, 255), 2, cv2.LINE_AA)
         return image
-    def calc_landmark_list(image, landmarks):
-        image_width, image_height = image.shape[1], image.shape[0]
-
-        landmark_point = []
-
-        # Keypoint
-        for _, landmark in enumerate(landmarks.landmark):
-            landmark_x = min(int(landmark.x * image_width), image_width - 1)
-            landmark_y = min(int(landmark.y * image_height), image_height - 1)
-            # landmark_z = landmark.z
-
-            landmark_point.append([landmark_x, landmark_y])
-
-        return landmark_point
-
-def get_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--width", help='cap width', type=int, default=960)
-    parser.add_argument("--height", help='cap height', type=int, default=540)
-
-    parser.add_argument('--use_static_image_mode', action='store_true')
-    parser.add_argument("--min_detection_confidence",
-                        help='min_detection_confidence',
-                        type=float,
-                        default=0.7)
-    parser.add_argument("--min_tracking_confidence",
-                        help='min_tracking_confidence',
-                        type=int,
-                        default=0.5)
-
-    args = parser.parse_args()
-
-    return args
 
 def main():
-    args = get_args()
-    cap_device = args.device
-    cap_width = args.width
-    cap_height = args.height
-
-    use_static_image_mode = args.use_static_image_mode
-    min_detection_confidence = args.min_detection_confidence
-    min_tracking_confidence = args.min_tracking_confidence
-
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(
-        static_image_mode=use_static_image_mode,
-        max_num_hands=1,
-        min_detection_confidence=min_detection_confidence,
-        min_tracking_confidence=min_tracking_confidence,
-    )
-
+    # Loading models
     cap = cv2.VideoCapture(0)
     tracker = hand_tracker()
     devices = AudioUtilities.GetSpeakers()
@@ -127,50 +120,54 @@ def main():
     IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
     volume = cast(interface, POINTER(IAudioEndpointVolume))
     print(volume.GetVolumeRange()) 
-
+    
+    # Fps
     fps_start_time = 0
     fps = 0
 
     while True:
+
         #fps init
         fps_end_time = time.time()
         time_diff = fps_end_time - fps_start_time
         fps = 1/(time_diff)
         fps_start_time = fps_end_time
+
         #break if pressed ESC
         key = cv2.waitKey(10)
         if key == 27:  # ESC
             break
 
-        success, image = cap.read()
+        #init image
+        _, image = cap.read()
         image = cv2.flip(image,1)
         image = tracker.hands_finder(image)
-        debug_image = copy.deepcopy(image)
         lmList = tracker.position_finder(image)
-        image.flags.writeable = False
-        #results = hands.process(image)
-        image.flags.writeable = True
+        perc = 0
         if len(lmList) != 0:
-            #thumb and index detection and output & setting the volume
+
+            #Caculating distance bet. thumb <-> index & getting the boundin rectangle
             thumb_x, thumb_y = lmList[4][1], lmList[4][2]
             index_x, index_y = lmList[8][1], lmList[8][2]
             length = int(math.hypot(index_x-thumb_x, index_y-thumb_y))
-            
-            
-            #drawing
-            brect = tracker.calc_bounding_rect(debug_image, lmList)
-            debug_image = tracker.draw_bounding_rect(True, debug_image, brect)
-            perc = int((length/brect[3]) * 100)
-            print(" - x : ",brect[0] ," - y : ", brect[1]," - w : ", brect[2], " - h : ",brect[3]," - length : ",length,
-            " - percentage : ", perc)
-            cv2.circle(debug_image, (thumb_x, thumb_y), 10, (255, 0, 255), cv2.FILLED)
-            cv2.circle(debug_image, (index_x, index_y), 10, (255, 0, 255), cv2.FILLED)
-            cv2.line(debug_image, (thumb_x, thumb_y), (index_x, index_y), (255, 0, 255), 3)
+            brect = tracker.calc_bounding_rect(lmList)
+            image = tracker.draw_bounding_rect(True, image, brect)
+            d = math.hypot(brect[3], brect[2])
+            perc_d = int( (length/d) * 100)
+            perc_h = int( (length/brect[3]) * 100)
+            print(d,perc_d ," - ",perc_h)
+            perc = perc_d
+            #Drawing
+            cv2.circle(image, (thumb_x, thumb_y), 10, (255, 0, 255), cv2.FILLED)
+            cv2.circle(image, (index_x, index_y), 10, (255, 0, 255), cv2.FILLED)
+            cv2.line(image, (thumb_x, thumb_y), (index_x, index_y), (255, 0, 255), 3)
 
-            volumeValue = np.interp(perc, [7, 85], [-65.25, 0.0])
+            #Setting the volume
+            volumeValue = np.interp(perc_d, [12, 60], [-65.25, 0.0])
             volume.SetMasterVolumeLevel(volumeValue, None)
 
         else:
             print("No hands Detected")
-        debug_image = tracker.draw_info(debug_image, int(fps))
-        cv2.imshow('Hand-Tracker volume control',debug_image) 
+
+        image = tracker.draw_info(image, int(fps), perc)
+        cv2.imshow('Hand-Tracker volume control',image) #Showing the window
